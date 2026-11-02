@@ -40,7 +40,7 @@ py -m venv .venv
 | 档位 | 模型 | 说明 | 下载 |
 | --- | --- | --- | --- |
 | 轻量 3B（低显存） | Llama-3.2-3B-Instruct-Uncensored | 前期轻量项目验证过的无对齐小模型，约 4GB 显存即可流畅运行，纯文本 | https://huggingface.co/chuanli11/Llama-3.2-3B-Instruct-uncensored |
-| 主用 27B（视觉 + 语言） | Qwen3.8-27B（Q4_K_M 量化） | 当前主用：本地 27B 基座 + 视觉投影塔，兼顾能力与显存 | 官方仓库 https://huggingface.co/Qwen/Qwen3.8-27B ；GGUF 量化 https://huggingface.co/unsloth/Qwen3.8-27B-GGUF |
+| 主用 27B（视觉 + 语言） | Qwen3.8-27B（Q4_K_M 量化） | 当前主用：本地 27B 基座 + 视觉投影塔，兼顾能力与显存 | GGUF 量化 https://huggingface.co/bartowski/Qwen3.8-27B-GGUF ；官方仓库 https://huggingface.co/Qwen/Qwen3.8-27B |
 
 **VL 是什么关系**：27B 是"视觉语言模型（VLM）"——它由**语言基座 + mmproj 视觉塔**组成。mmproj 把图片编码成语言模型能读的 token 序列，语言基座负责理解和生成文字，两部分合起来才能"看图说话"。所以下载时除了 GGUF 主文件（Q4_K_M 档），还要把配套的 mmproj 视觉塔文件放进同一目录；纯文本场景（只聊天不发图）可以只加载基座。3B 是纯文本模型，没有视觉塔。
 
