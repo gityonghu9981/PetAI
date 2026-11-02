@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>桌宠AI</title>
+<style>
+:root{--bg:#141821;--panel:#1b2130;--line:#2a3347;--fg:#dde4f0;--dim:#8b96ad;
+      --accent:#7aa2f7;--pet:#f0a5c0;--ok:#7dcf9a;--warn:#e0b057}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+     font:15px/1.7 "Microsoft YaHei UI",system-ui,sans-serif;height:100vh;display:flex;flex-direction:column}
+header{display:flex;gap:14px;align-items:center;padding:10px 18px;border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0}
+header .st{font-size:12px;color:var(--dim)}
+header .st b{color:var(--ok);font-weight:600}
+nav{display:flex;gap:6px;margin-left:auto}
+nav button{background:transparent;color:var(--dim);border:1px solid transparent;
+           padding:5px 12px;font-size:13px;font-weight:500;border-radius:8px}
+nav button.on{color:var(--fg);border-color:var(--line);background:var(--panel)}
+#chat{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.msg{max-width:78%;padding:9px 13px;border-radius:12px;white-space:pre-wrap;word-break:break-word}
+.msg.user{align-self:flex-end;background:#2b3a5c;border-bottom-right-radius:4px}
+.msg.pet{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg.pet::before{content:"🐾 ";color:var(--pet)}
+/* 她发来的图（/files 静态路由那张）——别撑破气泡，点开看原图 */
+.msg img.shot{display:block;max-width:100%;max-height:420px;margin:6px 0;border-radius:8px;
+  border:1px solid var(--line);cursor:zoom-in;background:#0002}
+.msg img.shot.zoom{max-height:none;cursor:zoom-out}
+.meta{font-size:11px;color:var(--dim);margin-top:4px}
+#panel{flex:1;overflow-y:auto;padding:14px 18px;display:none}
+#panel h3{font-size:14px;margin:14px 0 8px;color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+      padding:8px 12px;margin-bottom:8px;font-size:13px}
+.card .row{display:flex;gap:8px;align-items:baseline}
+.card .tag{font-size:11px;color:var(--accent);border:1px solid var(--line);
+           border-radius:6px;padding:0 6px;white-space:nowrap}
+.card .dim{color:var(--dim);font-size:11px}
+.card .act{margin-left:auto;display:flex;gap:6px;flex-shrink:0}
+.card button{padding:2px 10px;font-size:12px;border-radius:6px}
+form{display:flex;gap:10px;padding:12px 18px;border-top:1px solid var(--line)}
+input[type=text]{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--fg);
+                 border-radius:10px;padding:10px 14px;font-size:15px;outline:none}
+input[type=text]:focus{border-color:var(--accent)}
+button{background:var(--accent);border:0;color:#10131b;border-radius:10px;
+       padding:10px 22px;font-size:15px;font-weight:600;cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
+button.ghost{background:transparent;color:var(--dim);border:1px solid var(--line)}
+button.danger{background:transparent;color:#e07a7a;border:1px solid #5a3030}
+#status{font-size:12px;color:var(--dim);padding:0 18px 8px}
+.kv{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin-bottom:8px}
+.kv b{color:var(--ok)}
+#p-audit button.on{color:var(--fg);border-color:var(--accent)}
+</style>
+</head>
+<body>
+<header><h1>🐾 桌宠AI</h1><span class="st" id="st">连接中…</span>
+<nav>
+  <button id="tab-chat" class="on">聊天</button>
+  <button id="tab-all">全通道</button>
+  <button id="tab-mem">记忆</button>
+  <button id="tab-skill">技能</button>
+  <button id="tab-audit">审核</button>
+  <button id="tab-fw">框架</button>
+</nav></header>
+
+<div id="chat"></div>
+
+<div id="panel">
+  <div id="p-all" style="display:none">
+    <h3>全通道对话 <span class="dim">桌宠对话框 / 网页 都汇到这里 · 只读，不改动任何记录</span></h3>
+    <div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap">
+      <select id="all-ch" onchange="loadAll()"
+              style="background:var(--panel);border:1px solid var(--line);color:var(--fg);
+                     border-radius:8px;padding:4px 8px;font-size:13px">
+        <option value="">全部通道</option>
+      </select>
+      <input id="all-q" placeholder="搜对话内容，回车确认" onkeydown="if(event.key==='Enter')loadAll()"
+             style="flex:1;min-width:180px;background:var(--panel);border:1px solid var(--line);
+                    color:var(--fg);border-radius:8px;padding:4px 8px;font-size:13px">
+      <button class="ghost" onclick="loadAll()">刷新</button>
+      <span class="dim" id="all-n"></span>
+    </div>
+    <div class="card" id="all-state"></div>
+    <div class="card"><b>她做了什么</b><span class="dim">（行为流摘要，最近 40 条）</span>
+      <div id="all-act"></div></div>
+    <div class="card"><b>对话</b><span class="dim">（按时间倒序，最近 200 条）</span>
+      <div id="all-body"></div></div>
+  </div>
+  <div id="p-mem" style="display:none">
+    <h3>长期记忆 <span class="dim" id="mem-stat"></span></h3>
+    <div id="mem-list"></div>
+  </div>
+  <div id="p-skill" style="display:none">
+    <h3>技能建档 <span class="dim">draft=写了没发布 · published=生效中（触发词命中她才会用）</span></h3>
+    <div id="skill-list"></div>
+  </div>
+  <div id="p-audit" style="display:none">
+    <h3>审核台 <span class="dim">她不可见 · 暂时功能（前期核对测试用，PET_AUDIT_UI 可关）· 状态机与实时状态是永久功能不在此列</span></h3>
+    <div>
+      <button class="ghost" id="ab-flow" onclick="auditView('flow')">行为流</button>
+      <button class="ghost" id="ab-replay" onclick="auditView('replay')">聊天回放</button>
+      <button class="ghost" id="ab-wish" onclick="auditView('wish')">提议清单</button>
+      <button class="ghost" id="ab-err" onclick="auditView('err')">异常事件</button>
+    </div>
+    <div id="audit-tools" style="margin:8px 0;display:none;gap:8px;align-items:center">
+      <select id="audit-kind" style="background:var(--panel);border:1px solid var(--line);
+              color:var(--fg);border-radius:8px;padding:4px 8px;font-size:13px">
+        <option value="">全部类型</option><option>wish</option><option>wander</option>
+        <option>tool_call</option><option>generate</option><option>fallback</option>
+        <option>recheck</option><option>error</option><option>message</option>
+      </select>
+      <select id="audit-sid" style="background:var(--panel);border:1px solid var(--line);
+              color:var(--fg);border-radius:8px;padding:4px 8px;font-size:13px;max-width:220px">
+        <option value="">全部会话</option>
+      </select>
+      <button class="ghost" onclick="loadAuditFlow()">刷新</button>
+    </div>
+    <div id="audit-body"></div>
+  </div>
+  <div id="p-fw" style="display:none">
+    <h3>框架自检 <span class="dim">18 模块 · ✅实现 / 🔌接口占位</span></h3>
+    <div id="fw-list"></div>
+  </div>
+</div>
+
+<div id="status"></div>
+<form id="f"><input type="text" id="q" placeholder="和她说点什么…（Enter 发送）" autocomplete="off">
+<button id="go">发送</button></form>
+<script>
+const $=id=>document.getElementById(id), chat=$('chat'), q=$('q'), go=$('go');
+let busy=false;
+function bubble(cls, text){const d=document.createElement('div');d.className='msg '+cls;
+  d.textContent=text;chat.appendChild(d);chat.scrollTop=chat.scrollHeight;return d;}
+function esc(s){return (s||'').replace(/[<>&]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+// 她画完的图会以 ![名字](http://127.0.0.1:8094/files/x.png) 发过来。
+// 以前这里用 textContent，主人看到的是这串源码——现在真把图渲染出来。
+// 只认本机地址（不让外面来的图混进聊天窗），渲染全程用 DOM 节点，不拼 innerHTML。
+const IMG_RE=/!\[[^\]]*\]\(\s*(https?:\/\/[^\s)]+)\s*\)/g;
+function rich(el, text){
+  const s=(text||''); el.textContent='';
+  let last=0, m, hit=false;
+  IMG_RE.lastIndex=0;
+  while((m=IMG_RE.exec(s))!==null){
+    hit=true;
+    if(m.index>last) el.appendChild(document.createTextNode(s.slice(last,m.index)));
+    const src=m[1];
+    if(/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(src)){
+      const im=document.createElement('img');
+      im.className='shot'; im.loading='lazy'; im.alt='她画的图'; im.src=src;
+      im.onclick=()=>im.classList.toggle('zoom');       // 点一下放大／还原
+      im.onerror=()=>{im.replaceWith(document.createTextNode('（图没加载出来：'+src+'）'));};
+      el.appendChild(im);
+    }else{
+      el.appendChild(document.createTextNode('（不是本机的图，没贴：'+src+'）'));
+    }
+    last=m.index+m[0].length;
+  }
+  if(!hit){ el.textContent=s; return; }
+  if(last<s.length) el.appendChild(document.createTextNode(s.slice(last)));
+}
+function mk(text, cls, fn){const b=document.createElement('button');b.textContent=text;
+  b.className=cls;b.onclick=fn;return b;}
+async function refreshStatus(){
+  try{const r=await fetch('/api/status');const d=await r.json();
+    const e=d.engine||{}, g=d.vram||{}, m=d.memory||{};
+    $('st').innerHTML = e.health ? '引擎 <b>在线</b>（ctx '+e.ctx+'）' : '引擎 <b style="color:var(--warn)">离线</b>';
+    $('status').textContent = '显存 '+g.used_mb+'/'+g.total_mb+'MB（留给其它应用 '
+      + (g.total_mb-g.used_mb) + 'MB）· 记忆 '+ (m.facts_active||0) +' 条（活跃）'
+      + ' · 端口 '+d.ports;
+  }catch(e){$('st').textContent='服务不可达';}
+}
+// ---------------- 聊天 ----------------
+$('f').addEventListener('submit', async ev=>{
+  ev.preventDefault(); if(busy) return; const text=q.value.trim(); if(!text) return;
+  busy=true; go.disabled=true; q.value=''; bubble('user', text);
+  const el=bubble('pet','…'); let got='', t0=Date.now();
+  try{
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query:text, stream:true})});
+    const reader=r.body.getReader(), dec=new TextDecoder(); let buf='';
+    while(true){const {done,value}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true}); let i;
+      while((i=buf.indexOf('\n\n'))>=0){const frame=buf.slice(0,i);buf=buf.slice(i+2);
+        if(!frame.startsWith('data: ')) continue;
+        const payload=frame.slice(6);
+        if(payload==='[DONE]') continue;
+        try{const d=JSON.parse(payload);
+          if(d.delta){got+=d.delta; el.textContent=got||'…'; chat.scrollTop=chat.scrollHeight;}
+          if(d.step){const s=document.createElement('div');s.className='meta';s.textContent=d.step;
+            chat.insertBefore(s, el);chat.scrollTop=chat.scrollHeight;}
+          if(d.error){el.textContent='⚠ '+d.error;}
+        }catch(e){}
+      }
+    }
+    rich(el, got||'（她没说话）');
+    const meta=document.createElement('div');meta.className='meta';
+    meta.textContent=((Date.now()-t0)/1000).toFixed(1)+'s · '+got.length+' 字';
+    chat.appendChild(meta);chat.scrollTop=chat.scrollHeight;
+  }catch(e){el.textContent='⚠ 请求失败：'+e;}
+  refreshStatus(); busy=false; go.disabled=false; q.focus();
+});
+// ---------------- 上下文（2026-11-01：点气泡进聊天窗要接得住） ----------------
+// 载入 session=default 的最近 30 条，主人一进来就看到她刚才说了什么。
+// "（我主动跟主人说：…）"是等待帧落库的外壳，展示时剥掉，只留她的话。
+async function loadHistory(){
+  try{
+    const r=await fetch('/api/chat/history?sid=default&limit=30');
+    const d=await r.json(); const msgs=d.messages||[]; if(!msgs.length) return;
+    const sep=document.createElement('div'); sep.className='meta'; sep.textContent='— 最近的对话 —';
+    chat.appendChild(sep);
+    for(const m of msgs){
+      let t=m.content||'';
+      const mm=t.match(/^（我主动跟主人说：(.*?)）$/s);
+      if(mm) t=mm[1];
+      // 历史气泡也要走 rich()：不然她发过的图在"最近的对话"里只是一串 markdown 源码
+      // （2026-11-01 浏览器实测：img 元素数为 0，主人看到的是裸链接）。
+      const el=bubble(m.role==='user'?'user':'pet', t);
+      rich(el, t);
+    }
+    const sep2=document.createElement('div'); sep2.className='meta'; sep2.textContent='— 接着聊 —';
+    chat.appendChild(sep2); chat.scrollTop=chat.scrollHeight;
+  }catch(e){}
+}
+// ---------------- 面板切换 ----------------
+const TABS=['chat','all','mem','skill','send','audit','fw'];
+function show(tab){
+  for(const t of TABS)
+    $('tab-'+t).classList.toggle('on', t===tab);
+  $('chat').style.display = tab==='chat'?'flex':'none';
+  $('panel').style.display = tab==='chat'?'none':'block';
+  for(const p of ['all','mem','skill','send','audit','fw']) $('p-'+p).style.display = (p===tab)?'block':'none';
+  if(tab==='all') loadAll();
+  if(tab==='mem') loadMem(); if(tab==='skill') loadSkill(); if(tab==='fw') loadFw();
+  if(tab==='audit') auditView(auditTab||'flow');
+}
+for(const t of TABS) $('tab-'+t).onclick=()=>show(t);
+
+// ---------------- 全通道面板（桌宠右键"设置"落在这里） ----------------
+async function loadAll(){
+  const ch=$('all-ch').value||'', q=($('all-q').value||'').trim();
+  const d=await (await fetch('/api/allchat?limit=200&channel='
+                   +encodeURIComponent(ch)+'&q='+encodeURIComponent(q))).json();
+  const sel=$('all-ch'), cur=sel.value;
+  const chans=[...new Set((d.channels||[]).map(c=>c.channel))];
+  sel.innerHTML='<option value="">全部通道</option>'
+    +chans.map(x=>`<option${x===cur?' selected':''}>${esc(x)}</option>`).join('');
+  const st=d.state||{};
+  $('all-state').innerHTML='她现在：<b>'+esc(st.state_cn||'发呆')+'</b>'
+    +(st.line?' <span class="dim">'+esc(st.line)+'</span>':'')
+    +(st.time?' <span class="dim">'+esc(st.time)+'</span>':'')
+    +' <span class="dim">· 会话：'+(d.channels||[]).map(c=>esc(c.channel)+'('+c.n_msgs+')').join(' / ')+'</span>';
+  $('all-act').innerHTML=(d.activity||[]).length
+    ? d.activity.map(a=>`<div class="card"><div class="row"><span class="tag">${esc(a.kind)}</span>
+        <span>${esc(a.detail)}</span></div>
+        <div class="dim">${esc(a.time)}${a.sid?' · '+esc(a.sid):''}</div></div>`).join('')
+    : '<span class="dim">（暂无行为记录）</span>';
+  const ms=d.messages||[];
+  $('all-n').textContent=ms.length+' 条';
+  $('all-body').innerHTML=ms.length
+    ? ms.map(m=>`<div class="msg ${m.role==='user'?'user':'pet'}">
+        <div class="meta">${esc(m.time)} · ${esc(m.channel)} · ${m.role==='user'?'主人':'桌宠'}</div>
+        ${esc(m.content).replace(/\n/g,'<br>')}</div>`).join('')
+    : '<span class="dim">（这个筛选下没有内容）</span>';
+}
+// ---------------- 记忆面板 ----------------
+async function loadMem(){
+  const r=await fetch('/api/memory'); const d=await r.json();
+  $('mem-stat').textContent='活跃 '+d.stats.facts_active+' 条 · 核心 '+d.stats.core_set+
+    ' · FTS '+(d.stats.fts?'开':'关');
+  const box=$('mem-list'); box.innerHTML='';
+  for(const f of d.facts){
+    const c=document.createElement('div'); c.className='card';
+    c.innerHTML='<div class="row"><span class="tag">['+esc(f.kind)+']</span>'+
+      '<span>'+esc(f.content)+'</span><span class="act" id="ma'+f.id+'"></span></div>'+
+      '<div class="dim">置信 '+Number(f.confidence).toFixed(1)+' · 被用 '+f.hit_count+' 次'+
+      (f.promote_state?' · <b style="color:var(--ok)">核心</b>':'')+'</div>';
+    const act=c.querySelector('.act');
+    act.append(mk(f.promote_state?'取消核心':'设为核心', 'ghost',
+      ()=>promote(f.id, !f.promote_state)));
+    act.append(mk('忘掉', 'danger', ()=>forget(f.content.slice(0,12))));
+    box.appendChild(c);
+  }
+  if(!d.facts.length) box.innerHTML='<div class="dim">还没有长期记忆，多聊聊吧（每天 04:00 自动巩固）。</div>';
+}
+async function promote(id, on){await fetch('/api/memory/promote',{method:'POST',
+  headers:{'Content-Type':'application/json'},body:JSON.stringify({id, on})}); loadMem();}
+async function forget(sub){await fetch('/api/memory/forget',{method:'POST',
+  headers:{'Content-Type':'application/json'},body:JSON.stringify({content_substr:sub})}); loadMem();}
+// ---------------- 技能面板 ----------------
+async function loadSkill(){
+  const r=await fetch('/api/skills'); const d=await r.json();
+  const box=$('skill-list'); box.innerHTML='';
+  const names=Object.keys(d.skills||{}).sort();
+  for(const n of names){
+    const sk=d.skills[n];
+    const color=sk.status==='published'?'var(--ok)':sk.status==='retired'?'var(--dim)':'var(--warn)';
+    const c=document.createElement('div'); c.className='card';
+    c.innerHTML='<div class="row"><span class="tag" style="color:'+color+';border-color:'+color+'">'+
+      esc(sk.status)+'</span><b>'+esc(sk.title||n)+'</b><span class="act"></span></div>'+
+      '<div class="dim">触发词: '+esc((sk.triggers||[]).join('、')||'（无）')+
+      ' · 配额 '+sk.quota_tokens+'tok · 命中 '+sk.hit_count+' 次 · 反馈 '+((sk.feedback||[]).length)+' 条</div>';
+    const act=c.querySelector('.act');
+    if(sk.status!=='published') act.append(mk('发布（点头）', '', ()=>pub(n, true)));
+    if(sk.status!=='draft') act.append(mk('退回草稿', 'ghost', ()=>pub(n, false)));
+    act.append(mk('+1', 'ghost', ()=>fb(n, 1)));
+    act.append(mk('-1', 'ghost', ()=>fb(n, -1)));
+    box.appendChild(c);
+  }
+  if(!names.length) box.innerHTML='<div class="dim">还没有技能。想教她本事，直接在聊天里说"我教你怎么用XX"。</div>';
+}
+async function pub(n, on){await fetch('/api/skills/'+encodeURIComponent(n)+'/publish',
+  {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({on})}); loadSkill();}
+async function fb(n, score){await fetch('/api/skills/'+encodeURIComponent(n)+'/feedback',
+  {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({score})}); loadSkill();}
+// ---------------- 框架面板 ----------------
+async function loadFw(){
+  const r=await fetch('/api/framework'); const d=await r.json();
+  const box=$('fw-list'); box.innerHTML='';
+  const rt=d.runtime||{};
+  const kv=document.createElement('div'); kv.className='kv';
+  kv.innerHTML='<span>引擎: <b>'+(rt.engine_running===true?'在线':'离线')+'</b></span>'+
+    '<span>显存: '+esc(String(rt.vram||'?'))+'</span>'+
+    '<span>API线: '+((rt.api_line&&rt.api_line.enabled)?'开':'关（红线默认）')+'</span>'+
+    '<span>向量路: '+(rt.vector_ready?'接入':'未接入（两路融合）')+'</span>';
+  box.appendChild(kv);
+  for(const m of d.modules){
+    const ok=m.imported && !(m.missing_functions||[]).length;
+    const c=document.createElement('div'); c.className='card';
+    c.innerHTML='<div class="row"><span class="tag">'+m.layer+'</span><b>'+esc(m.name)+
+      '</b><span class="dim">'+esc(m.duty)+'</span><span class="act">'+
+      (ok?'<span style="color:var(--ok);font-size:12px">'+
+        (m.state==='implemented'?'✓ 实现':'🔌 接口占位')+'</span>'
+        :'<span style="color:#e07a7a;font-size:12px">✗ 异常</span>')+'</span></div>';
+    box.appendChild(c);
+  }
+}
+// ---------------- 审核台（主人侧，她不可见） ----------------
+let auditTab='flow', auditSidCache=[];
+function auditView(name){
+  auditTab=name;
+  for(const b of ['flow','replay','wish','err']) $('ab-'+b).classList.toggle('on', b===name);
+  $('audit-tools').style.display = (name==='flow')?'flex':'none';
+  if(name==='flow') loadAuditFlow();
+  if(name==='replay') loadAuditReplay();
+  if(name==='wish') loadAuditWish();
+  if(name==='err') loadAuditErr();
+}
+async function loadAuditFlow(){
+  const kind=$('audit-kind').value, sid=$('audit-sid').value;
+  const r=await fetch('/api/audit?limit=200'+(kind?'&kind='+kind:'')+(sid?'&session_id='+encodeURIComponent(sid):''));
+  const d=await r.json(); const box=$('audit-body'); box.innerHTML='';
+  if(d.kinds){const kv=document.createElement('div');kv.className='kv';
+    kv.innerHTML=Object.entries(d.kinds).map(([k,n])=>'<span>'+esc(k)+': <b>'+n+'</b></span>').join('');
+    box.appendChild(kv);}
+  // 会话下拉只增不减（保留选择）
+  const sids=[...new Set((d.events||[]).map(e=>e.session_id).filter(Boolean))];
+  for(const s of sids) if(![...$('audit-sid').options].some(o=>o.value===s)){
+    const o=document.createElement('option');o.value=s;o.textContent=s;$('audit-sid').appendChild(o);}
+  for(const e of (d.events||[]).slice().reverse()){
+    const c=document.createElement('div'); c.className='card';
+    const kc={wish:'var(--pet)',error:'#e07a7a',fallback:'var(--warn)',
+              wander:'var(--ok)',recheck:'var(--accent)'}[e.kind]||'var(--accent)';
+    c.innerHTML='<div class="row"><span class="tag" style="color:'+kc+';border-color:'+kc+'">'+
+      esc(e.kind)+'</span><span>'+esc(e.detail)+'</span></div>'+
+      '<div class="dim">'+esc(e.time||'')+(e.session_id?' · 会话 '+esc(e.session_id):'')+
+      (e.name?' · '+esc(e.name):'')+(e.status?' · '+esc(e.status):'')+
+      (e.answer_chars?' · 答'+e.answer_chars+'字':'')+(e.elapsed_s?' · '+e.elapsed_s+'s':'')+'</div>';
+    box.appendChild(c);
+  }
+  if(!(d.events||[]).length) box.innerHTML='<div class="dim">暂无记录（她每轮的行为会自动记到这里）。</div>';
+}
+async function loadAuditReplay(){
+  const r=await fetch('/api/audit/sessions'); const d=await r.json();
+  const box=$('audit-body'); box.innerHTML='';
+  for(const s of (d.sessions||[])){
+    const c=document.createElement('div'); c.className='card';
+    c.innerHTML='<div class="row"><b>'+esc(s.sid)+'</b><span class="act"></span></div>'+
+      '<div class="dim">'+s.turns+' 轮 · 最近 '+esc(s.last_time)+'</div>';
+    c.querySelector('.act').append(mk('回放', '', ()=>{
+      box.innerHTML='<div class="dim">加载中…</div>'; loadReplayTurns(s.sid);}));
+    box.appendChild(c);
+  }
+  if(!(d.sessions||[]).length) box.innerHTML='<div class="dim">还没有会话落档。</div>';
+}
+async function loadReplayTurns(sid){
+  const r=await fetch('/api/audit/session?sid='+encodeURIComponent(sid));
+  const d=await r.json(); const box=$('audit-body'); box.innerHTML='';
+  box.appendChild(mk('← 返回会话列表', 'ghost', loadAuditReplay));
+  for(const t of (d.turns||[])){
+    const h=document.createElement('h3'); h.textContent='第 '+(t.file||'').replace('.jsonl','')+' 轮';
+    box.appendChild(h);
+    for(const e of (t.events||[])){
+      const c=document.createElement('div'); c.className='card';
+      if(e.type==='message'){
+        c.innerHTML='<div class="row"><span class="tag">'+(e.role==='user'?'主人':'她')+
+          '</span><span>'+esc(e.content)+'</span></div>';
+      }else if(e.type==='tool_call'){
+        c.innerHTML='<div class="row"><span class="tag">工具</span><span>'+esc(e.name)+
+          ' '+esc(JSON.stringify(e.args||{}))+'</span></div>';
+      }else if(e.type==='tool_result'){
+        c.innerHTML='<div class="row"><span class="tag dim">结果</span><span class="dim">'+
+          esc(e.name)+' 返回 '+e.chars+' 字</span></div>';
+      }else if(e.type==='usage'){
+        c.innerHTML='<div class="dim">用量：'+Object.entries(e).filter(([k])=>!['type','ts'].
+          includes(k)).map(([k,v])=>esc(k)+'='+esc(String(v))).join(' · ')+'</div>';
+      }else{
+        c.innerHTML='<div class="dim">['+esc(e.type)+'] '+esc(e.name||'')+' '+esc(e.detail||e.msg||'')+'</div>';
+      }
+      box.appendChild(c);
+    }
+  }
+}
+async function loadAuditWish(){
+  const r=await fetch('/api/wishes'); const d=await r.json();
+  const box=$('audit-body'); box.innerHTML='';
+  box.innerHTML='<div class="dim">pending='+d.stats.pending+' · approved='+d.stats.approved+
+    ' · rejected='+d.stats.rejected+'（提议只留痕，接入由主人人工执行）</div>';
+  for(const w of (d.wishes||[])){
+    const c=document.createElement('div'); c.className='card';
+    const cl={pending:'var(--warn)',approved:'var(--ok)',rejected:'var(--dim)'}[w.status];
+    c.innerHTML='<div class="row"><span class="tag" style="color:'+cl+';border-color:'+cl+'">'+
+      esc(w.status)+'</span><b>'+esc(w.name||'（未命名）')+'</b></div>'+
+      '<div>'+esc(w.reason)+'</div><div class="dim">'+esc(w.time||'')+
+      (w.urls&&w.urls.length?' · <a style="color:var(--accent)" href="'+esc(w.urls[0])+
+       '" target="_blank">'+esc(w.urls[0])+'</a>':'')+'</div>'+
+      (w.review_note?'<div style="color:var(--warn);font-size:12px;margin-top:4px">审阅留痕（'+
+        esc(w.decided_by||'主人')+'）：'+esc(w.review_note)+'</div>':'');
+    if(w.status==='pending'){
+      const act=document.createElement('div'); act.className='act';
+      act.append(mk('点头（人工去接）', '', ()=>decideWish(w.wish_id||w.id, true)));
+      act.append(mk('摇头', 'danger', ()=>decideWish(w.wish_id||w.id, false)));
+      c.appendChild(act);
+    }
+    box.appendChild(c);
+  }
+  if(!(d.wishes||[]).length) box.innerHTML+='<div class="dim">还没有提议记录。</div>';
+}
+async function decideWish(id, ok){
+  // 摇头时让主人顺手留个理由（review_note）——审核台可见，她也会被闸门拦住不再重提
+  const note = ok ? '' : (prompt('摇头理由（留痕显示在提议清单，可留空）') || '');
+  await fetch('/api/wishes/'+id+(ok?'/approve':'/reject'),{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({on:true,note:note})});
+  loadAuditWish();
+}
+async function loadAuditErr(){
+  const r=await fetch('/api/audit?limit=100&kind=error'); const r2=await fetch('/api/audit?limit=100&kind=fallback');
+  const d=await r.json(), d2=await r2.json();
+  const box=$('audit-body'); box.innerHTML='';
+  const all=[...(d.events||[]),...(d2.events||[])].sort((a,b)=>b.ts-a.ts);
+  for(const e of all){
+    const c=document.createElement('div'); c.className='card';
+    c.innerHTML='<div class="row"><span class="tag" style="color:#e07a7a;border-color:#5a3030">'+
+      esc(e.kind)+'</span><span>'+esc(e.detail)+'</span></div>'+
+      '<div class="dim">'+esc(e.time||'')+(e.session_id?' · '+esc(e.session_id):'')+'</div>';
+    box.appendChild(c);
+  }
+  if(!all.length) box.innerHTML='<div class="dim">没有异常事件，很好。</div>';
+}
+// 审核功能开关：关了就不显示 tab（暂时功能）
+fetch('/api/audit/config').then(r=>r.json()).then(d=>{
+  if(!d.ui) $('tab-audit').style.display='none';
+}).catch(()=>{});
+loadHistory(); refreshStatus(); setInterval(refreshStatus, 5000); q.focus();
+// 桌宠右键"设置"打开的是 http://127.0.0.1:8094/?view=all —— 直接落在全通道页。
+// 放在最后：先让聊天页正常初始化，再切面板（切过去会盖掉聊天视图）。
+{
+  const v = new URLSearchParams(location.search).get('view');
+  if (v && ['all','mem','skill','send','audit','fw'].includes(v)) show(v);
+}
+</script>
+</body>
+</html>

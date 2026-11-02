@@ -1,0 +1,28 @@
+# ===== Python =====
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ===== 运行时数据（自动生成，不入库） =====
+data/
+
+# ===== 模型与素材（自行下载，不入库） =====
+models/
+*.gguf
+*.safetensors
+
+# ===== 日志 =====
+logs/
+*.log
+
+# ===== 临时 =====
+.tmp/
+*.tmp
+
+# ===== 测试产物 =====
+tests/result-*.md
+
+# ===== 系统文件 =====
+Thumbs.db
+Desktop.ini

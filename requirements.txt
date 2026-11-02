@@ -1,0 +1,17 @@
+# 桌宠AI · Python 依赖（.venv 用）
+# 安装：.venv\Scripts\pip install -r requirements.txt
+# 注意：桌宠壳（desktop/pet.py）需要 tkinter——用系统 Python（3.11+，安装时勾选
+# tcl/tk），不装进 .venv（.venv 的 Python 无 tkinter）。
+fastapi==0.162.0
+uvicorn==0.54.0
+pydantic==2.14.1
+Jinja2==3.1.6
+websocket-client==1.9.2
+uiautomation==2.0.29
+playwright==1.64.1
+requests==2.34.2
+httpx==0.28.1
+Pillow==13.0.0
+pyautogui==0.9.54
+mss==10.2.0
+pywinauto==0.6.9
